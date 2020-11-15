@@ -1,84 +1,89 @@
 from selenium import webdriver 
-from selenium.webdriver.support.ui import WebDriverWait 
-from selenium.webdriver.support import expected_conditions as EC 
-from selenium.webdriver.common.keys import Keys 
-from selenium.webdriver.common.by import By 
 from time import sleep
+import mysql.connector
 
 
-# https://api.whatsapp.com/send?phone=+972599704270
+
+######################################################################
+mydb = mysql.connector.connect(                                      #
+host="localhost",                                                    #
+user="root",                                                         #
+password="",                                                         #
+database="db1"                                                       #
+)                                                                    # #                                                                    #
+table_name = 'new'                                                   #
+  				                                     # #                                                                    #
+sleep_time = 4          # time between msg                           #
+                                                                     #
+######################################################################
 
 
 class Sender:
+
     def __init__(self):
         global id_number
         id_number = int(input('Enter the id you want to start from : '))
+        if id_number == 0 :
+            id_number += 1
         global finsh
         finsh = int(input('How many number u want to send msg : '))
         finsh += id_number
 
-
-
-    def connect_database(slef,user,password):
-        import mysql.connector
-        mydb = mysql.connector.connect(
-        host="localhost",
-        user="yourusername",
-        password="yourpassword",
-        database="mydatabase"
-        )
-        global mycursor
-        mycursor = mydb.cursor()
-
     def scan_qr(self):
-        # chrome_options = webdriver.ChromeOptions()
-        # prefs = {"profile.default_content_setting_values.notifications" : 2}
-        # chrome_options.add_experimental_option("prefs",prefs)
         global driver
-        _browser_profile = webdriver.FirefoxProfile()
-        _browser_profile.set_preference("dom.webnotifications.enabled", False)
-        driver = webdriver.Firefox(firefox_profile=_browser_profile)
-        
-        # driver = webdriver.Chrome('/home/msf/Desktop/whatsapp_sender/chromedriver',chrome_options=chrome_options) 
-        
-        
-        
+        driver = webdriver.Firefox(executable_path='geckodriver.exe')  
         driver.get("https://web.whatsapp.com/") 
-        sleep(7)
+        sleep(5)
 
     def open_chat(self,number):
-        api_link = f'https://web.whatsapp.com/send?phone={number}'
+        api_link = 'https://web.whatsapp.com/send?phone={0}'.format(number)
         driver.get(api_link)
         sleep(0.2)
-        driver.find_element_by_xpath('//*[@id="action-button"]')
-        driver.click()
-        sleep(0.1)
-        driver.find_element_by_xpath('//*[@id="fallback_block"]/div/div/a')
-        driver.click()
 
-
-    def send_message(self,message):
-        driver.find_element_by_xpath('//*[@id="main"]/footer/div[1]/div[2]/div/div[2]')
-        driver.send_keys(message)
-        driver.submit()
         
-
+    def send_message(self,message):
+        d = driver.find_element_by_xpath('//*[@id="main"]/footer/div[1]/div[2]/div/div[2]')
+        d.send_keys(message)
+        sleep(0.2)
+        d = driver.find_element_by_xpath('/html/body/div[1]/div/div/div[4]/div/footer/div[1]/div[3]/button/span')
+        d.click()
+        
+        
     def read_database(self,id_number):
-        mycursor.execute("SELECT * FROM customers")
+        mycursor = mydb.cursor()
+        mycursor.execute("SELECT * FROM {0}".format(table_name))
         global myresult
         myresult = mycursor.fetchall()
         for i in myresult:
             if id_number in i:
                 num = int(myresult.index(i))
         myresult = myresult[num:finsh]
+        return myresult
 
+         
+    def update_to_sucsess(self,number):
+        mycursor = mydb.cursor()
+        sql = "UPDATE {0} SET status_wp = 'sucsess' WHERE id = {1};".format(table_name,number)
+        mycursor.execute(sql)
+        mydb.commit()
+
+    def update_to_field(self,number):
+        mycursor = mydb.cursor()
+        sql = "UPDATE {0} SET status_wp = 'field' WHERE id = {1};".format(table_name,number)
+        mycursor.execute(sql)
+        mydb.commit()
 
 if __name__ == "__main__":
-    myresult = [(1,'+970599704270','sasdsssss')]
-
     test = Sender()
+    myresult = test.read_database(id_number)
     test.scan_qr()
     for i in myresult:
-        test.open_chat(i[1])
-        test.send_message(i[2])
+        try:
+            test.open_chat(i[2])
+            sleep(2)
+            test.send_message(i[3])
+            test.update_to_sucsess(i[0])
+            sleep(sleep_time)
+        except:
+            test.update_to_field(i[0])
 
